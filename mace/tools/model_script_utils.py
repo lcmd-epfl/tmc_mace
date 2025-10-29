@@ -280,10 +280,10 @@ def _build_model(
     if args.model == "BOTNet":
         raise RuntimeError("BOTNet is deprecated, use MACE instead")
     if args.model == "AtomicDipolesMACE":
-        assert args.loss == "dipole", "Use dipole loss with AtomicDipolesMACE model"
-        assert (
-            args.error_table == "DipoleRMSE"
-        ), "Use error_table DipoleRMSE with AtomicDipolesMACE model"
+        #assert args.loss == "dipole", "Use dipole loss with AtomicDipolesMACE model"
+        #assert (
+        #    args.error_table == "DipoleRMSE"
+        #), "Use error_table DipoleRMSE with AtomicDipolesMACE model"
         return modules.AtomicDipolesMACE(
             **model_config,
             correlation=args.correlation,

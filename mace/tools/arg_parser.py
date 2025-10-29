@@ -649,6 +649,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "universal",
             "energy_forces_dipole",
             "l1l2energyforces",
+            "dipole_magnitude",
         ],
     )
     parser.add_argument(

@@ -180,6 +180,7 @@ def filter_nonzero_weight(
     spread_atoms=False,
     spread_quantity_vector=True,
 ) -> float:
+
     quantity = quantity_l[-1]
     # repeat with interleaving for per-atom quantities
     if spread_atoms:

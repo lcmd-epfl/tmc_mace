@@ -69,8 +69,9 @@ def create_error_table(
         table.field_names = [
             "config_type",
             "MAE E / meV",
+            "RMSE E / meV",
             "MAE F / meV / A",
-            "relative F MAE %",
+            #"relative F MAE %",
         ]
     elif table_type == "PerAtomMAE":
         table.field_names = [
@@ -88,8 +89,11 @@ def create_error_table(
     elif table_type == "DipoleMAE":
         table.field_names = [
             "config_type",
-            "MAE MU / mDebye / atom",
+            "MAE MU / mDebye", 
+            "RMSE MU / mDebye",
+#           "MAE MU / mDebye / atom",
             "relative MU MAE %",
+            "relative MU RMSE %",
         ]
     elif table_type == "DipolePolarRMSE":
         table.field_names = [
@@ -210,8 +214,9 @@ def create_error_table(
                 [
                     name,
                     f"{metrics['mae_e'] * 1000:8.1f}",
+                    f"{metrics['rmse_e'] * 1000:8.1f}",
                     f"{metrics['mae_f'] * 1000:8.1f}",
-                    f"{metrics['rel_mae_f']:8.2f}",
+                    #f"{metrics['rel_mae_f']:8.2f}",
                 ]
             )
         elif table_type == "PerAtomMAE":
@@ -235,8 +240,11 @@ def create_error_table(
             table.add_row(
                 [
                     name,
-                    f"{metrics['mae_mu_per_atom'] * 1000:8.2f}",
+                    f"{metrics['mae_mu'] * 1000:8.2f}",
+                    f"{metrics['rmse_mu'] * 1000:8.2f}",
+                    #f"{metrics['mae_mu_per_atom'] * 1000:8.2f}",
                     f"{metrics['rel_mae_mu']:8.1f}",
+                    f"{metrics['rel_rmse_mu']:.1f}",
                 ]
             )
         elif table_type == "DipolePolarRMSE":

@@ -301,7 +301,9 @@ class MACE(torch.nn.Module):
         node_e0 = self.atomic_energies_fn(data["node_attrs"])[
             num_atoms_arange, node_heads
         ]
-        e0 = scatter_sum(
+        # changed from scatter_sum to scatter_mean
+        #e0 = scatter_sum(
+        e0 = scatter_mean(
             src=node_e0, index=data["batch"], dim=0, dim_size=num_graphs
         ).to(
             vectors.dtype
@@ -379,7 +381,9 @@ class MACE(torch.nn.Module):
             node_es = readout(node_feats_concat[feat_idx], node_heads)[
                 num_atoms_arange, node_heads
             ]
-            energy = scatter_sum(node_es, data["batch"], dim=0, dim_size=num_graphs)
+            #energy = scatter_sum(node_es, data["batch"], dim=0, dim_size=num_graphs)
+            energy = scatter_mean(node_es, data["batch"], dim=0, dim_size=num_graphs)
+            # changed from scatter_sum to scatter_mean
             energies.append(energy)
             node_energies_list.append(node_es)
 
@@ -481,7 +485,9 @@ class ScaleShiftMACE(MACE):
         node_e0 = self.atomic_energies_fn(data["node_attrs"])[
             num_atoms_arange, node_heads
         ]
-        e0 = scatter_sum(
+        # changed from scatter_sum to scatter_mean
+        #e0 = scatter_sum(
+        e0 = scatter_mean(
             src=node_e0, index=data["batch"], dim=0, dim_size=num_graphs
         ).to(
             vectors.dtype
@@ -563,7 +569,9 @@ class ScaleShiftMACE(MACE):
         node_feats_out = torch.cat(node_feats_list, dim=-1)
         node_inter_es = torch.sum(torch.stack(node_es_list, dim=0), dim=0)
         node_inter_es = self.scale_shift(node_inter_es, node_heads)
-        inter_e = scatter_sum(node_inter_es, data["batch"], dim=-1, dim_size=num_graphs)
+        inter_e = scatter_mean(node_inter_es, data["batch"], dim=-1, dim_size=num_graphs)
+        # changed from scatter_sum to scatter_mean
+
 
         total_energy = e0 + inter_e
         node_energy = node_e0.clone().double() + node_inter_es.clone().double()
@@ -816,9 +824,13 @@ class AtomicDipolesMACE(torch.nn.Module):
         )  # [n_graphs,3]
         total_dipole = total_dipole + baseline
 
+        # Compute the magnitude (norm) of the total dipole
+        dipole_magnitude = torch.norm(total_dipole, dim=-1)
+
         output = {
             "dipole": total_dipole,
             "atomic_dipoles": atomic_dipoles,
+            "dipole_magnitude": dipole_magnitude,
         }
         return output
 

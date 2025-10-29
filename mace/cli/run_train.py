@@ -67,7 +67,7 @@ from mace.tools.scripts_utils import (
 )
 from mace.tools.tables_utils import create_error_table
 from mace.tools.utils import AtomicNumberTable
-
+import traceback
 
 def main() -> None:
     """
@@ -1060,7 +1060,7 @@ def run(args) -> None:
                 plotter.plot(epoch, model_to_evaluate, rank)
             except Exception as e:  # pylint: disable=W0718
                 logging.debug(f"Plotting failed: {e}")
-
+                traceback.print_exc()
         if args.distributed:
             torch.distributed.barrier()
 

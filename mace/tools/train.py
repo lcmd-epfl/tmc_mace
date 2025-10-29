@@ -36,6 +36,7 @@ from .utils import (
     compute_rmse,
     filter_nonzero_weight,
 )
+import traceback
 
 
 @dataclasses.dataclass
@@ -122,9 +123,15 @@ def valid_err_log(
         )
     elif log_errors == "TotalMAE":
         error_e = eval_metrics["mae_e"] * 1e3
-        error_f = eval_metrics["mae_f"] * 1e3
+        #error_f = eval_metrics["mae_f"] * 1e3
         logging.info(
-            f"{inintial_phrase}: head: {valid_loader_name}, loss={valid_loss:8.8f}, MAE_E={error_e:8.2f} meV, MAE_F={error_f:8.2f} meV / A",
+            f"{inintial_phrase}: head: {valid_loader_name}, loss={valid_loss:8.8f}, MAE_E={error_e:8.2f} meV",
+            #f"{inintial_phrase}: head: {valid_loader_name}, loss={valid_loss:8.8f}, MAE_E={error_e:8.2f} meV, MAE_F={error_f:8.2f} meV / A",
+        )
+    elif log_errors == "DipoleMAE":
+        error_mu = eval_metrics["mae_mu"] * 1e3
+        logging.info(
+            f"{inintial_phrase}: head: {valid_loader_name}, loss={valid_loss:8.8f}, MAE_MU={error_mu:8.2f} mDebye",
         )
     elif log_errors == "DipoleRMSE":
         error_mu = eval_metrics["rmse_mu_per_atom"] * 1e3
@@ -288,6 +295,7 @@ def train(
                         plotter.plot(epoch, model_to_evaluate, rank)
                     except Exception as e:  # pylint: disable=broad-except
                         logging.debug(f"Plotting failed: {e}")
+                        traceback.print_exc()
                 valid_loss = (
                     valid_loss_head  # consider only the last head for the checkpoint
                 )
@@ -550,10 +558,11 @@ def evaluate(
         output = model(
             batch_dict,
             training=False,
-            compute_force=output_args["forces"],
-            compute_virials=output_args["virials"],
-            compute_stress=output_args["stress"],
+            compute_force=False,#output_args["forces"],
+            compute_virials=False,#output_args["virials"],
+            compute_stress=False,#output_args["stress"],
         )
+        #print(f"{output=}")
         avg_loss, aux = metrics(batch, output)
 
     avg_loss, aux = metrics.compute()
@@ -591,6 +600,7 @@ class MACELoss(Metric):
         self.add_state("mus", default=[], dist_reduce_fx="cat")
         self.add_state("delta_mus", default=[], dist_reduce_fx="cat")
         self.add_state("delta_mus_per_atom", default=[], dist_reduce_fx="cat")
+        self.add_state("delta_mus_magnitude", default=[], dist_reduce_fx="cat")
         self.add_state(
             "polarizability_computed", default=torch.tensor(0.0), dist_reduce_fx="sum"
         )
@@ -638,17 +648,21 @@ class MACELoss(Metric):
             )
         if output.get("dipole") is not None and batch.dipole is not None:
             self.mus.append(batch.dipole)
-            self.delta_mus.append(batch.dipole - output["dipole"])
-            self.delta_mus_per_atom.append(
-                (batch.dipole - output["dipole"])
-                / (batch.ptr[1:] - batch.ptr[:-1]).unsqueeze(-1)
-            )
+            self.delta_mus.append(batch.dipole - output["dipole_magnitude"])
+            # Change from dipole vector to dipole magnitude
+            #self.delta_mus.append(batch.dipole - output["dipole"])
+            #self.delta_mus_per_atom.append(
+            #    (batch.dipole - output["dipole"])
+            #    / (batch.ptr[1:] - batch.ptr[:-1]).unsqueeze(-1)
+            #)
+            
+            #print(f"{batch.dipole=} {output['dipole_magnitude']=} {self.delta_mus=} {batch.weight=} {batch.dipole_weight=}")
             self.Mus_computed += filter_nonzero_weight(
                 batch,
                 self.delta_mus,
                 batch.weight,
                 batch.dipole_weight,
-                spread_quantity_vector=False,
+                #spread_quantity_vector=False,
             )
         if (
             output.get("polarizability") is not None
@@ -722,12 +736,13 @@ class MACELoss(Metric):
         if self.Mus_computed:
             mus = self.convert(self.mus)
             delta_mus = self.convert(self.delta_mus)
-            delta_mus_per_atom = self.convert(self.delta_mus_per_atom)
+            #delta_mus_per_atom = self.convert(self.delta_mus_per_atom)
             aux["mae_mu"] = compute_mae(delta_mus)
-            aux["mae_mu_per_atom"] = compute_mae(delta_mus_per_atom)
+            #print(f"CHECK {delta_mus=}")
+            #aux["mae_mu_per_atom"] = compute_mae(delta_mus_per_atom)
             aux["rel_mae_mu"] = compute_rel_mae(delta_mus, mus)
             aux["rmse_mu"] = compute_rmse(delta_mus)
-            aux["rmse_mu_per_atom"] = compute_rmse(delta_mus_per_atom)
+            #aux["rmse_mu_per_atom"] = compute_rmse(delta_mus_per_atom)
             aux["rel_rmse_mu"] = compute_rel_rmse(delta_mus, mus)
             aux["q95_mu"] = compute_q95(delta_mus)
         if self.polarizability_computed:

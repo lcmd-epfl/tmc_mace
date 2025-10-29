@@ -63,7 +63,9 @@ def weighted_mean_squared_error_energy(
     raw_loss = (
         ref.weight
         * ref.energy_weight
-        * torch.square((ref["energy"] - pred["energy"]) / num_atoms)
+        * torch.square((ref["energy"] - pred["energy"]))
+        # No division by num_atoms
+        #* torch.square((ref["energy"] - pred["energy"]) / num_atoms)
     )
     return reduce_loss(raw_loss, ddp)
 
@@ -153,6 +155,22 @@ def weighted_mean_squared_error_dipole(
     num_atoms = (ref.ptr[1:] - ref.ptr[:-1]).unsqueeze(-1)
     raw_loss = torch.square((ref["dipole"] - pred["dipole"]) / num_atoms)
     return reduce_loss(raw_loss, ddp)
+
+
+def weighted_mean_squared_error_dipole_magnitude(ref: Batch, pred: TensorDict, ddp: Optional[bool] = None):
+    """
+    Compute weighted_mean_squared_error between reference and predicted dipole magnitudes.
+    """
+    # Get predicte dipole momentmagnitude 
+    pred_mag = pred["dipole_magnitude"]
+    
+    # Reference magnitude (already scalar)
+    ref_mag = ref["dipole"]  # [batch, 1]
+
+    raw_loss = torch.square(ref_mag - pred_mag)
+    return reduce_loss(raw_loss, ddp)
+    #abs_error = torch.abs(ref_mag - pred_mag)
+    #return reduce_loss(abs_error, ddp)
 
 
 # ------------------------------------------------------------------------------
@@ -259,13 +277,13 @@ class WeightedEnergyForcesLoss(torch.nn.Module):
         self, ref: Batch, pred: TensorDict, ddp: Optional[bool] = None
     ) -> torch.Tensor:
         loss_energy = weighted_mean_squared_error_energy(ref, pred, ddp)
-        loss_forces = mean_squared_error_forces(ref, pred, ddp)
-        return self.energy_weight * loss_energy + self.forces_weight * loss_forces
+#        loss_forces = mean_squared_error_forces(ref, pred, ddp)
+        return self.energy_weight * loss_energy #+ self.forces_weight * loss_forces
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}(energy_weight={self.energy_weight:.3f}, "
-            f"forces_weight={self.forces_weight:.3f})"
+            f"{self.__class__.__name__}(energy_weight={self.energy_weight:.3f} "
+            f"forces manually removed)"
         )
 
 
@@ -518,8 +536,11 @@ class DipoleSingleLoss(torch.nn.Module):
         self, ref: Batch, pred: TensorDict, ddp: Optional[bool] = None
     ) -> torch.Tensor:
         loss = (
-            weighted_mean_squared_error_dipole(ref, pred, ddp) * 100.0
+            # change from weighted_mean_squared_error_dipole to weighted_mean_squared_error_dipole_magnitude
+            weighted_mean_squared_error_dipole_magnitude(ref, pred, ddp)
+            #weighted_mean_squared_error_dipole(ref, pred, ddp) * 100.0
         )  # scale adjustment
+        #print("DipoleSingleLoss", self.dipole_weight, loss, self.dipole_weight* loss)
         return self.dipole_weight * loss
 
     def __repr__(self):

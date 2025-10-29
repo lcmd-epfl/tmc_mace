@@ -62,8 +62,10 @@ error_type = {
         ],
     ),
     "TotalMAE": (
-        [("mae_e", "MAE E [meV]"), ("mae_f", "MAE F [meV / A]")],
-        [("energy", "Energy per atom [eV]"), ("force", "Force [eV / A]")],
+        [("mae_e", "MAE E [meV]")],
+        [("energy", "Energy [eV]"), ("interaction_energy", "Energy [eV]")],
+        #[("mae_e", "MAE E [meV]"), ("mae_f", "MAE F [meV / A]")],
+        #[("energy", "Energy per atom [eV]"), ("force", "Force [eV / A]")],
     ),
     "PerAtomMAE": (
         [("mae_e_per_atom", "MAE E/atom [meV]"), ("mae_f", "MAE F [meV / A]")],
@@ -77,8 +79,9 @@ error_type = {
         [("dipole", "Dipole per atom [Debye]")],
     ),
     "DipoleMAE": (
-        [("mae_mu", "MAE MU [mDebye]"), ("rel_mae_f", "Relative MU MAE [%]")],
-        [("dipole", "Dipole per atom [Debye]")],
+        [("mae_mu", "MAE MU [mDebye]")],
+        #[("mae_mu", "MAE MU [mDebye]"), ("rel_mae_f", "Relative MU MAE [%]")],
+        [("dipole", "Dipole [Debye]"), ("dipole", "Dipole [Debye]")],
     ),
     "DipolePolarRMSE": (
         [
@@ -144,6 +147,7 @@ class TrainingPlotter:
             self.device,
             self.distributed,
         )
+        #print(f"{train_valid_dict=}")
         test_dict = model_inference(
             self.test_data, model, self.output_args, self.device, self.distributed
         )
@@ -166,7 +170,8 @@ class TrainingPlotter:
             subfigs = fig.subfigures(2, 1, height_ratios=[1, 1], hspace=0.05)
             axsTop = subfigs[0].subplots(1, 2, sharey=False)
             axsBottom = subfigs[1].subplots(1, len(quantities), sharey=False)
-
+            #print(f"{train_valid_dict=}")
+            #print(f"{test_dict=}")
             plot_epoch_dependence(axsTop, data, head, model_epoch, labels)
 
             # Use the pre-computed results for plotting
@@ -305,7 +310,7 @@ def plot_inference_from_results(
     quantities: List[str],
     plot_interaction_e: bool = False,
 ) -> None:
-
+    
     for ax, quantity in zip(axes, quantities):
         key, label = quantity
 
@@ -329,8 +334,17 @@ def plot_inference_from_results(
             if key == "energy" and "energy" in result:
                 e_key = "energy" if not plot_interaction_e else "interaction_energy"
                 scatter = ax.scatter(
-                    result[e_key]["reference_per_atom"],
-                    result[e_key]["predicted_per_atom"],
+                    result[e_key]["reference"],
+                    result[e_key]["predicted"],
+                    marker=marker,
+                    color=fixed_color_train_valid,
+                    label=name,
+                )
+            elif key == "interaction_energy" and "interaction_energy" in result:
+                e_key = "interaction_energy"
+                scatter = ax.scatter(
+                    result[e_key]["reference"],
+                    result[e_key]["predicted"],
                     marker=marker,
                     color=fixed_color_train_valid,
                     label=name,
@@ -365,8 +379,8 @@ def plot_inference_from_results(
 
             elif key == "dipole" and "dipole" in result:
                 scatter = ax.scatter(
-                    result["dipole"]["reference_per_atom"],
-                    result["dipole"]["predicted_per_atom"],
+                    result["dipole"]["reference"],
+                    result["dipole"]["predicted"],
                     marker=marker,
                     color=fixed_color_train_valid,
                     label=name,
@@ -386,8 +400,18 @@ def plot_inference_from_results(
             if key == "energy" and "energy" in result:
                 e_key = "energy" if not plot_interaction_e else "interaction_energy"
                 scatter = ax.scatter(
-                    result[e_key]["reference_per_atom"],
-                    result[e_key]["predicted_per_atom"],
+                    result[e_key]["reference"],
+                    result[e_key]["predicted"],
+                    marker="o",
+                    color=fixed_color_test,
+                    label="Test",
+                )
+
+            elif key == "interaction_energy" and "interaction_energy" in result:
+                e_key = "interaction_energy"
+                scatter = ax.scatter(
+                    result[e_key]["reference"],
+                    result[e_key]["predicted"],
                     marker="o",
                     color=fixed_color_test,
                     label="Test",
@@ -422,8 +446,8 @@ def plot_inference_from_results(
 
             elif key == "dipole" and "dipole" in result:
                 scatter = ax.scatter(
-                    result["dipole"]["reference_per_atom"],
-                    result["dipole"]["predicted_per_atom"],
+                    result["dipole"]["reference"],
+                    result["dipole"]["predicted"],
                     marker="o",
                     color=fixed_color_test,
                     label="Test",
@@ -449,7 +473,11 @@ def plot_inference_from_results(
             ax.legend(
                 handles=legend_labels.values(), labels=legend_labels.keys(), loc="best"
             )
-        if key != "energy" or not plot_interaction_e:
+
+        if key == "interaction_energy":
+            ax.set_xlabel(f"Reference Interaction {label}")
+            ax.set_ylabel(f"MACE Interaction {label}")
+        elif key != "energy" or not plot_interaction_e:
             ax.set_xlabel(f"Reference {label}")
             ax.set_ylabel(f"MACE {label}")
         else:
@@ -479,6 +507,7 @@ def model_inference(
         for batch in data_loader:
             batch = batch.to(device)
             batch_dict = batch.to_dict()
+            #print(f"{batch_dict=}")
             output = model(
                 batch_dict,
                 training=False,
@@ -486,9 +515,13 @@ def model_inference(
                 compute_virials=output_args.get("virials", False),
                 compute_stress=output_args.get("stress", False),
             )
-
+            #print(f"model_inference {output=}")
+            if model.__class__.__name__ in ["AtomicDielectricMACE"]:
+                dipole_magnitude = torch.norm(output["dipole"], dim=-1)
+                output["dipole_magnitude"] = dipole_magnitude
+                #print(f"{output['dipole_magnitude']=}")
             results = scatter_metric(batch, output)
-
+            #print(f"{results=}")
         if distributed:
             torch.distributed.barrier()
 
@@ -500,6 +533,7 @@ def model_inference(
 
     for param in model.parameters():
         param.requires_grad = True
+    #print(f"{results_dict=}")
 
     return results_dict
 
@@ -681,31 +715,35 @@ class InferenceMetric(Metric):
         # Dipole
         if output.get("dipole") is not None and batch.dipole is not None:
             self.ref_dipole.append(batch.dipole)
-            self.pred_dipole.append(output["dipole"])
-            atoms_per_config_3d = atoms_per_config.view(-1, 1)
-            self.ref_dipole_per_atom.append(batch.dipole / atoms_per_config_3d)
-            self.pred_dipole_per_atom.append(output["dipole"] / atoms_per_config_3d)
+            #print(f"ref_dipole {batch.dipole=}")
+            #print(f"pred_dipole {output['dipole']=} {output['dipole_magnitude']=}")
+            pred_dipole_mag = output['dipole_magnitude']
+            #self.pred_dipole.append(output["dipole"])
+            self.pred_dipole.append(pred_dipole_mag)
+            #atoms_per_config_3d = atoms_per_config.view(-1, 1)
+            #self.ref_dipole_per_atom.append(batch.dipole / atoms_per_config_3d)
+            #self.pred_dipole_per_atom.append(output["dipole"] / atoms_per_config_3d)
 
             self.n_dipole += filter_nonzero_weight(
-                batch, self.ref_dipole, batch.weight, batch.dipole_weight, "config"
+                batch, self.ref_dipole, batch.weight, batch.dipole_weight, #"config"
             )
             filter_nonzero_weight(
-                batch, self.pred_dipole, batch.weight, batch.dipole_weight, "config"
+                batch, self.pred_dipole, batch.weight, batch.dipole_weight, #"config"
             )
-            filter_nonzero_weight(
-                batch,
-                self.ref_dipole_per_atom,
-                batch.weight,
-                batch.dipole_weight,
-                spread_quantity_vector=False,
-            )
-            filter_nonzero_weight(
-                batch,
-                self.pred_dipole_per_atom,
-                batch.weight,
-                batch.dipole_weight,
-                spread_quantity_vector=False,
-            )
+            #filter_nonzero_weight(
+            #    batch,
+            #    self.ref_dipole_per_atom,
+            #    batch.weight,
+            #    batch.dipole_weight,
+            #    spread_quantity_vector=False,
+            #)
+            #filter_nonzero_weight(
+            #    batch,
+            #    self.pred_dipole_per_atom,
+            #    batch.weight,
+            #    batch.dipole_weight,
+            #    spread_quantity_vector=False,
+            #)
 
     def _process_data(self, ref_list, pred_list):
         # Handle different possible states of ref_list and pred_list in distributed mode
@@ -789,13 +827,13 @@ class InferenceMetric(Metric):
         # Process dipoles
         if self.n_dipole:
             ref_d, pred_d = self._process_data(self.ref_dipole, self.pred_dipole)
-            ref_d_pa, pred_d_pa = self._process_data(
-                self.ref_dipole_per_atom, self.pred_dipole_per_atom
-            )
+            #ref_d_pa, pred_d_pa = self._process_data(
+            #    self.ref_dipole_per_atom, self.pred_dipole_per_atom
+            #)
             results["dipole"] = {
                 "reference": ref_d,
                 "predicted": pred_d,
-                "reference_per_atom": ref_d_pa,
-                "predicted_per_atom": pred_d_pa,
+            #    "reference_per_atom": ref_d_pa,
+            #    "predicted_per_atom": pred_d_pa,
             }
         return results

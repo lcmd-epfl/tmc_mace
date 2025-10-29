@@ -93,14 +93,14 @@ class AtomicData(torch_geometric.data.Data):
         assert forces_weight is None or len(forces_weight.shape) == 0
         assert stress_weight is None or len(stress_weight.shape) == 0
         assert virials_weight is None or len(virials_weight.shape) == 0
-        assert dipole_weight is None or dipole_weight.shape == (1, 3), dipole_weight
+        #assert dipole_weight is None or dipole_weight.shape == (1, 3), dipole_weight
         assert charges_weight is None or len(charges_weight.shape) == 0
         assert cell is None or cell.shape == (3, 3)
         assert forces is None or forces.shape == (num_nodes, 3)
         assert energy is None or len(energy.shape) == 0
         assert stress is None or stress.shape == (1, 3, 3)
         assert virials is None or virials.shape == (1, 3, 3)
-        assert dipole is None or dipole.shape[-1] == 3
+        #assert dipole is None or dipole.shape[-1] == 3
         assert charges is None or charges.shape == (num_nodes,)
         assert elec_temp is None or len(elec_temp.shape) == 0
         assert total_charge is None or len(total_charge.shape) == 0
@@ -219,14 +219,15 @@ class AtomicData(torch_geometric.data.Data):
                 config.property_weights.get("dipole"), dtype=torch.get_default_dtype()
             )
             if config.property_weights.get("dipole") is not None
-            else torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.get_default_dtype())
+            else torch.tensor(1.0, dtype=torch.get_default_dtype())
+            #else torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.get_default_dtype())
         )
-        if len(dipole_weight.shape) == 0:
-            dipole_weight = dipole_weight * torch.tensor(
-                [[1.0, 1.0, 1.0]], dtype=torch.get_default_dtype()
-            )
-        elif len(dipole_weight.shape) == 1:
-            dipole_weight = dipole_weight.unsqueeze(0)
+        #if len(dipole_weight.shape) == 0:
+        #    dipole_weight = dipole_weight * torch.tensor(
+        #        [[1.0, 1.0, 1.0]], dtype=torch.get_default_dtype()
+        #    )
+        #elif len(dipole_weight.shape) == 1:
+        #    dipole_weight = dipole_weight.unsqueeze(0)
 
         charges_weight = (
             torch.tensor(
